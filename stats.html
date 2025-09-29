@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Food & Symptoms Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="./stats.css" />
+    <link rel="stylesheet" href="./shared.css" />
+    <script src="./stats.js"></script>
+  </head>
+
+  <body>
+    <nav>
+      <a href="./index.html">Home</a>
+      <a href="./stats.html">Stats</a>
+    </nav>
+
+    <h1>📊 Food & Symptoms Dashboard</h1>
+    <div class="dashboard">
+      <div class="card">
+        <h3>Meals Breakdown</h3>
+        <canvas id="mealsChart"></canvas>
+      </div>
+      <div class="card">
+        <h3>Average Water Intake</h3>
+        <canvas id="drinkChart"></canvas>
+      </div>
+      <div class="card">
+        <h3>Symptoms Frequency</h3>
+        <canvas id="symptomsChart"></canvas>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-bottom:20px;">
+    <button onclick="updateCharts('week')">Past Week</button>
+    <button onclick="updateCharts('month')">Past Month</button>
+    <button onclick="updateCharts('year')">Past Year</button>
+    <button onclick="updateCharts('all')">All Time</button>
+</div>
+  </body>
+</html>
