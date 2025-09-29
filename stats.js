@@ -1,62 +1,78 @@
-let allRows = []; // store everything once
+let allRows = [];
 let mealsChart, drinkChart, symptomsChart;
 
 async function loadSheet() {
-  const sheetID = "16j6tMO_QqXk5y9CiJXOVvvasrQZAEUkNQr4sYJMVJgw"; // ✅ your sheet ID
+  const sheetID = "16j6tMO_QqXk5y9CiJXOVvvasrQZAEUkNQr4sYJMVJgw";
   const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:json&headers=1`;
 
   try {
     const res = await fetch(url);
     const text = await res.text();
     const json = JSON.parse(text.substr(47).slice(0, -2));
-    allRows = json.table.rows.slice(1); // save all rows (skip header)
-
-    updateCharts("all"); // show all by default
+    allRows = json.table.rows.slice(1); // skip header
+    console.log("Loaded rows:", allRows.length);
+    updateCharts("all");
   } catch (err) {
     console.error("Error loading sheet:", err);
     alert("Error loading data. Check console for details.");
   }
 }
 
-function updateCharts(period) {
-  // set date cutoff
-  let cutoff = new Date(0); // default: no filter
-  const today = new Date();
-  if (period === "week") cutoff = new Date(today.setDate(today.getDate() - 7));
-  if (period === "month")
-    cutoff = new Date(today.setMonth(today.getMonth() - 1));
-  if (period === "year")
-    cutoff = new Date(today.setFullYear(today.getFullYear() - 1));
+// --- Helpers ---
+function parseSheetDate(cell) {
+  if (!cell) return null;
+  if (cell.f) return new Date(cell.f); // formatted date string
+  if (typeof cell.v === "string") return new Date(cell.v);
+  if (typeof cell.v === "number") {
+    // Google serial date (days since 1899-12-30)
+    return new Date(1899, 11, 30 + cell.v);
+  }
+  return null;
+}
 
-  // reset counters
-  let mealCounts = { Breakfast: {}, Lunch: {}, Dinner: {} };
-  let totalWater = 0,
-    waterCount = 0;
-  let symptomCounts = {};
+function parseWater(str) {
+  if (!str) return 0;
+  const nums = String(str).match(/[\d.]+/g);
+  if (!nums) return 0;
+  return Math.max(...nums.map(Number));
+}
 
-  // normalize typos
-  const normalizeMap = {
+function normalize(str) {
+  if (!str) return "";
+  const map = {
     sandwhich: "sandwich",
     cerial: "cereal",
     headace: "headache",
     nasea: "nausea",
   };
-  const normalize = (str, dict) => {
-    if (!str) return "";
-    let key = str.trim().toLowerCase();
-    return normalizeMap[key] || key;
-  };
+  let key = str.trim().toLowerCase();
+  return map[key] || key;
+}
 
-  // process rows
+// --- Charts ---
+function updateCharts(period) {
+  let cutoff = new Date(0);
+  const today = new Date();
+  if (period === "week") cutoff = new Date(Date.now() - 7 * 86400000);
+  if (period === "month")
+    cutoff = new Date(today.setMonth(today.getMonth() - 1));
+  if (period === "year")
+    cutoff = new Date(today.setFullYear(today.getFullYear() - 1));
+
+  let mealCounts = { Breakfast: {}, Lunch: {}, Dinner: {} };
+  let totalWater = 0,
+    waterCount = 0;
+  let symptomCounts = {};
+
   allRows.forEach((r) => {
-    const dateStr = r.c[0]?.v || "";
-    const date = new Date(dateStr);
-    if (date < cutoff) return; // skip if older than cutoff
+    if (!r.c) return;
+    const date = parseSheetDate(r.c[0]);
+    if (!date || date < cutoff) return;
 
     const breakfast = r.c[1]?.v || "";
     const lunch = r.c[2]?.v || "";
     const dinner = r.c[3]?.v || "";
-    let water = r.c[4]?.v || "";
+    let water = parseWater(r.c[4]?.v || "");
     const symptoms = r.c[5]?.v || "";
 
     [
@@ -65,17 +81,14 @@ function updateCharts(period) {
       ["Dinner", dinner],
     ].forEach(([meal, item]) => {
       if (item) {
-        const key = normalize(item, mealCounts[meal]);
+        const key = normalize(item);
         mealCounts[meal][key] = (mealCounts[meal][key] || 0) + 1;
       }
     });
 
-    if (water) {
-      water = parseFloat(water.replace(/[^\d.]/g, "")) || 0;
-      if (water > 0) {
-        totalWater += water;
-        waterCount++;
-      }
+    if (water > 0) {
+      totalWater += water;
+      waterCount++;
     }
 
     if (
@@ -84,19 +97,17 @@ function updateCharts(period) {
       symptoms.toLowerCase() !== "none"
     ) {
       symptoms.split(",").forEach((sym) => {
-        const key = normalize(sym, symptomCounts);
+        const key = normalize(sym);
         if (key) symptomCounts[key] = (symptomCounts[key] || 0) + 1;
       });
     }
   });
 
-  // ✅ Update charts dynamically
   updateMealChart(mealCounts);
   updateWaterChart(totalWater, waterCount);
   updateSymptomsChart(symptomCounts);
 }
 
-// update functions for each chart
 function updateMealChart(mealCounts) {
   const labels = Array.from(
     new Set([
@@ -135,7 +146,6 @@ function updateMealChart(mealCounts) {
 
 function updateWaterChart(totalWater, waterCount) {
   const avgWater = waterCount ? (totalWater / waterCount).toFixed(2) : 0;
-
   if (drinkChart) drinkChart.destroy();
   drinkChart = new Chart(document.getElementById("drinkChart"), {
     type: "doughnut",
